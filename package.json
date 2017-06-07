@@ -1,0 +1,27 @@
+{
+  "name": "clay-bundler",
+  "version": "1.0.0",
+  "description": "",
+  "main": "build-megabundle.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "babelify": "^7.3.0",
+    "browserify": "^14.4.0",
+    "browserify-extract-ids": "^0.1.0",
+    "browserify-extract-registry": "^0.1.0",
+    "browserify-splitter": "0.0.5",
+    "browserify-transform-tools": "^1.7.0",
+    "bundle-collapser": "^1.2.1",
+    "fs-extra": "^3.0.1",
+    "gaze": "^1.1.2",
+    "glob": "^7.1.2",
+    "lodash": "^4.17.4",
+    "node-sass": "^4.5.3",
+    "string-to-stream": "^1.1.0",
+    "vueify": "^9.4.1"
+  }
+}
