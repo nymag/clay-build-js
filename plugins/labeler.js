@@ -9,7 +9,7 @@ const _ = require('lodash'),
  * built-in labeler. Ensures existing modules are assigned their current IDs.
  * @param {object} b
  * @param {object} [opts]
- * @param {object} [opts.ids] Mapping of current filenames to module IDs
+ * @param {object} [opts.cacheIds] Mapping of current filenames to module IDs
  * @returns {object} Browserify plugin
  */
 function labeler(b, {cachedIds = {}}) {

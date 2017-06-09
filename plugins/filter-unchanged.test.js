@@ -1,45 +1,84 @@
 'use strict';
 const sinon = require('sinon'),
   expect = require('chai').expect,
+  path = require('path'),
+  fs = require('fs'),
+  browserify = require('browserify'),
+  mockFiles = require('../test/mock-files'),
   dirname = __dirname.split('/').pop(),
   filename = __filename.split('/').pop().split('.').shift(),
-  fs = require('fs'),
-  plugin = require('./' + filename),
-  browserify = require('browserify');
+  fn = require('./' + filename),
+  unpack = require('browser-unpack');
 
 describe(dirname, function () {
   describe(filename, function () {
-    let sandbox;
+    const srcA = "require('./b.js')",
+      srcB = 'module.exports=1',
+      srcC = 'module.exports=2';
 
-    beforeEach(function () {
-      sandbox = sinon.sandbox.create();
-      sandbox.stub(fs, 'readFile');
-      sandbox.stub(fs, 'writeFile');
+    beforeEach(()=> {
+      mockFiles.create('a.js', srcA)
+      mockFiles.create('b.js', srcB);
+      mockFiles.create('c.js', srcC);
     });
     afterEach(function () {
-      sandbox.restore();
+      mockFiles.reset();
     });
 
-    it('removes cached files', function (done) {
-      const bundler = browserify();
+    it('does not filter out anything if cachedFiles is not set', function (done) {
+      const bundler = browserify()
+        .add(mockFiles.path('a.js'))
+        .plugin(fn)
+        .bundle((err, contents) => {
+          const unpacked = unpack(contents);
+          if (err) return done(err);
 
-      fs.readFile.callsFake(function (a, b, c) {
-        console.log(a, b, c);
-        return 'test';
-      });
-
-      console.log('go bundle');
-      bundler.bundle()
-        .on('error', (err)=>{
-          console.log(err);
+          expect(unpacked.length).to.equal(2);
+          expect(unpacked[0].source).to.equal(srcA);
+          expect(unpacked[1].source).to.equal(srcB)
           done();
+        });
+    });
+
+    it('filters out files included in cachedFiles', function (done) {
+      const bundler = browserify()
+        .add(mockFiles.path('a.js'))
+        .plugin(fn, {
+          cachedFiles: [
+            mockFiles.path('b.js'),
+            mockFiles.path('c.js')
+          ]
         })
-        .on('end', () => {
-          console.log('done');
+        .bundle((err, contents) => {
+          const unpacked = unpack(contents);
+          if (err) return done(err);
+
+          expect(unpacked.length).to.equal(1);
+          expect(unpacked[0].source).to.equal(srcA);
+          done();
+        });
+    });
+
+    it('does not filter out entry files, even if they are in cachedFiles', function (done) {
+      const bundler = browserify()
+        .add(mockFiles.path('a.js'))
+        .add(mockFiles.path('b.js'))
+        .plugin(fn, {
+          cachedFiles: [
+            mockFiles.path('a.js'),
+            mockFiles.path('b.js'),
+            mockFiles.path('c.js')
+          ]
+        })
+        .bundle((err, contents) => {
+          const unpacked = unpack(contents);
+          if (err) return done(err);
+
+          expect(unpacked.length).to.equal(2);
+          expect(unpacked[0].source).to.equal(srcA);
+          expect(unpacked[1].source).to.equal(srcB);
           done();
         });
     });
   });
 });
-
-

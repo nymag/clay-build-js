@@ -24,8 +24,47 @@ const fs = require('fs-extra'),
   // paths or globs to megabundle entry files
   ENTRY_GLOBS = [
     'components/*/model.js',
+    'components/*/controller.js',
     './global/kiln-js/index.js'
   ];
+
+/**
+ * Browserify.bundle(), but as a Promise
+ * @param {} bundler 
+ */
+function promiseBundle(bundler) {
+  return new Promise(function(resolve, reject) {
+    bundler.bundle()
+      .on('end', () => resolve())
+      .on('error', reject)
+      .resume(); // force the bundle read-stream to flow
+  });
+}
+
+/**
+ * Merge the subcache into the cache.
+ * @param {object} subcache 
+ * @param {object} cache 
+ */
+function mergeSubcache(subcache, cache) {
+  _.assign(cache.registry, subcache.registry);
+  _.assign(cache.ids, subcache.ids);
+  cache.files = _.union(subcache.files, cache.files);
+  cache.env = _.union(subcache.env, cache.env);
+}
+
+/**
+ * Start watching files
+ * @param {string[]} files File paths or globs to watch
+ * @param {function} onUpdate Gets updated/added file path and watcher object
+ */
+function startWatching(files, onUpdate) {
+  gaze(files, (err, watcher) => {
+    if (err) console.error(err);
+    watcher.on('changed', (file) => onUpdate && onUpdate(file, watcher));
+    watcher.on('added', (file) => onUpdate && onUpdate(file, watcher));
+  });
+}
 
 /**
  * Update the megabundle with changes from filepaths.
@@ -33,53 +72,47 @@ const fs = require('fs-extra'),
  * @param {object} [opts]
  * @param {boolean} [opts.debug] Disables uglify and bundle-collapse
  * @param {boolean} [opts.verbose] Logs file writes
- * @param {object} [opts.bundler] Pass in custom bundler
- * @param {object} [opts.cache] Used to track data between builds so we don't need to do full rebuild on each change
- * @param {object} [opts.cache.ids] Map of absolute source file paths to module IDs
- * @param {string[]} [opts.cache.env] Array of env vars used
- * @param {object} [opts.cache.registry] Dependency registry. Maps each module ID to an array of dependency IDs
- * @param {string[]} [opts.cache.files] Array of all source files represented in the megabundle.
+ * @param {function} [opts.preBundle] Function to run before bundling. First arg is Browserify bundler
+ * @param {function} [opts.babelConf] Configuration object for Babel.
+ * @param {object} [cache] Tracks data between builds so we don't need to do full rebuild on each change
+ * @param {object} [cache.ids] Map of absolute source file paths to module IDs
+ * @param {string[]} [cache.env] Array of env vars used
+ * @param {object} [cache.registry] Dependency registry. Maps each module ID to an array of dependency IDs
+ * @param {string[]} [cache.files] Array of all source files represented in the megabundle.
  * @returns {Promise}
  */
-function compileScripts(filepaths, opts) {
+function compileScripts(filepaths, opts, cache = {}) {
   const entries = filepaths.map(file => path.resolve(file)),
-    subcache = {};
-  let cache,
-    bundler;
+    subcache = {},
+    bundler = browserify({
+      dedupe: false
+    });
 
   opts = _.defaults({}, opts, {
     debug: false,
     verbose: false,
-    cache: {},
-    bundler: browserify({dedupe: false})
+    preBundle: Promise.resolve(),
+    babelConf: {
+      presets: ['es2015'],
+      plugins: ['trasnform-es2015-module-commonjs']
+    }
   });
-  cache = _.defaults({}, opts.cache, {
+
+  _.defaults(cache, {
     ids: {},
     env: [],
     registry: {},
     files: []
   });
 
-  bundler = opts.bundler;
-
-  if (opts.verbose) console.log('updating megabundle');
+  if (opts.verbose) console.log('updating megabundle, options = ', opts);
 
   bundler
     .require(entries)
     // Transpile to ES5
-    .transform(babelify.configure({
-      presets: ['es2015'],
-      plugins: ['transform-es2015-modules-commonjs']
-    }))
+    .transform(babelify.configure(babelConf))
     // Transform behavior and pane .vue files
-    .transform(vueify, {
-      babel: {
-        presets: ['es2015'],
-        // Converts import / export syntax to CommonJS. Allows us to use that syntax if we want
-        // but does NOT perform any tree-shaking
-        plugins: ['transform-es2015-modules-commonjs']
-      }
-    })
+    .transform(vueify, {babel: babelConf})
     // Generate the "models" module; allows edit-after to fetch all model names with
     // require('models')
     .plugin(plugins.generateModelsSource, {
@@ -126,45 +159,28 @@ function compileScripts(filepaths, opts) {
 
   if (!opts.debug) {
     bundler
-      .transform({global: true, output: {inline_script: true }}, 'uglifyify') // Uglify everything
+      // Uglify everything
+      .transform({
+        global: true,
+        output: {
+          inline_script: true
+        }}, 'uglifyify')
       // Shorten bundle size by rewriting require calls to use actual module IDs
       // instead of file paths
       .plugin(bundleCollapser);
   }
 
-  return new Promise((resolve, reject) => {
-    bundler.bundle()
-      .on('end', () => {
-        if (opts.debug) {
-          console.log(cache.ids);
-        }
+  return Promise.resolve(opts.preBundle(bundler))
+    .then(() => promiseBundle(bundler))
+    .then(() => {
+        if (opts.debug) console.log(cache.ids);
         // merge the subcache into the cache; overwrite, but never delete
-        _.assign(cache.registry, subcache.registry);
-        _.assign(cache.ids, subcache.ids);
-        cache.files = _.union(subcache.files, cache.files);
-        cache.env = _.union(subcache.env, cache.env);
+        mergeSubcache(subcache, cache);
         // export registry and env vars
         fs.outputJsonSync(REGISTRY_PATH, cache.registry);
         fs.outputJsonSync(ENV_PATH, cache.env);
         if (opts.verbose) console.log('megabundle updated');
-        resolve();
-      })
-      .on('error', reject)
-      .resume(); // force the bundle read-stream to flow
-  });
-}
-
-/**
- * Start watching files
- * @param {string[]} files File paths or globs to watch
- * @param {function} onUpdate Gets updated/added file path and watcher object
- */
-function startWatching(files, onUpdate) {
-  gaze(files, (err, watcher) => {
-    if (err) console.error(err);
-    watcher.on('changed', (file) => onUpdate && onUpdate(file, watcher));
-    watcher.on('added', (file) => onUpdate && onUpdate(file, watcher));
-  });
+    });
 }
 
 /**
@@ -176,19 +192,19 @@ function startWatching(files, onUpdate) {
  * @returns {Promise}
  */
 function build(opts = {}) {
-  const entries = ENTRY_GLOBS
-      .reduce((prev, pattern) => prev.concat(glob.sync(pattern)), []);
+  const entries = ENTRY_GLOBS.reduce((prev, pattern) => prev.concat(glob.sync(pattern)), []),
+    cache = {};
 
-  return compileScripts(entries, opts)
+  return compileScripts(entries, opts, cache)
     .then(()=>{
       if (opts.watch) {
         // start watching all files in the bundle and entry file locations
-        const filesToWatch = bundleOpts.cache.files.concat(ENTRY_GLOBS);
+        const filesToWatch = cache.files.concat(ENTRY_GLOBS);
 
         startWatching(filesToWatch, (file, watcher) => {
-          compileScripts([file], bundleOpts, (err) => {
+          compileScripts([file], opts, (err) => {
             if (err) console.error(err);
-            watcher.add(_.keys(bundleOpts.cache.ids)); // watch new files
+            watcher.add(_.keys(cache.ids)); // watch new files
           });
         });
       }
