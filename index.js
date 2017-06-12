@@ -11,7 +11,7 @@ const fs = require('fs-extra'),
   browserifyExtractIds = require('browserify-extract-ids'),
   bundleCollapser = require('bundle-collapser/plugin'),
   _ = require('lodash'),
-  gaze = require('gaze'),
+  Gaze = require('gaze').Gaze,
   vueify = require('vueify'),
   extractCSS = require('vueify/plugins/extract-css'),
   plugins = {
@@ -19,7 +19,12 @@ const fs = require('fs-extra'),
     labeler: require('./plugins/labeler'),
     generateModelsSource: require('./plugins/generate-models-source'),
     transformEnv: require('./plugins/transform-env')
-  };
+  },
+  ENTRY_GLOBS = [
+    'components/*/model.js',
+    'components/*/controller.js',
+    './global/kiln-js/index.js'
+  ];
 
 /**
  * Browserify.bundle(), but as a Promise
@@ -51,12 +56,19 @@ function mergeSubcache(subcache, cache) {
  * @param {string[]} files File paths or globs to watch
  * @param {function} onUpdate Gets updated/added file path and watcher object
  */
-function startWatching(files, baseDir, onUpdate) {
-  gaze(files, {cwd: baseDir}, (err, watcher) => {
-    if (err) console.error(err);
-    watcher.on('changed', (file) => onUpdate && onUpdate(file, watcher));
-    watcher.on('added', (file) => onUpdate && onUpdate(file, watcher));
-  });
+function startWatching(cache, conf) {
+  const patternsToWatch = cache.files.concat(ENTRY_GLOBS),
+    handleUpdate = file => {
+      compileScripts([file], conf, cache)
+        .then(() => watcher.add(_.keys(cache.ids))) // watch new files
+        .catch((err) => console.error(err))
+      };
+  let watcher;
+  
+  new Gaze(patternsToWatch, {cwd: conf.baseDir})
+    .on('ready', result => watcher = result)
+    .on('changed', handleUpdate)
+    .on('added', handleUpdate);
 }
 
 /**
@@ -85,6 +97,8 @@ function compileScripts(filepaths, conf, cache = {}) {
   });
 
   if (conf.verbose) console.log('updating megabundle, options = ', conf);
+
+  console.log('--cache =', cache);
 
   bundler
     .require(entries)
@@ -154,7 +168,10 @@ function compileScripts(filepaths, conf, cache = {}) {
     .then(() => {
         if (conf.debug) console.log(cache.ids);
         // merge the subcache into the cache; overwrite, but never delete
+        console.log('!!!merging subcache, registry = ', subcache.registry);
         mergeSubcache(subcache, cache);
+
+        console.log('!!!NEW CACHE: ', cache);
         // export registry and env vars
         fs.outputJsonSync(conf.registryPath, cache.registry);
         fs.outputJsonSync(conf.envPath, cache.env);
@@ -168,7 +185,7 @@ function compileScripts(filepaths, conf, cache = {}) {
  * @return {object}
  */
 function defaults(opts) {
-  opts = _.defaults({}, opts, {
+  let conf = _.defaults({}, opts, {
     debug: false,
     verbose: false,
     preBundle: Promise.resolve(),
@@ -180,12 +197,12 @@ function defaults(opts) {
   });
 
   // these depend on how baseDir is set and so must be separate
-  opts = _.defaults(opts, {
-    registryPath: path.resolve(opts.baseDir, 'public', 'js', 'registry.json'),
-    outputDir: path.resolve(opts.baseDir, 'public', 'js'),
-    envPath: path.resolve(opts.baseDir, 'client-env.json')
+  conf = _.defaults(conf, {
+    registryPath: path.resolve(conf.baseDir, 'public', 'js', 'registry.json'),
+    outputDir: path.resolve(conf.baseDir, 'public', 'js'),
+    envPath: path.resolve(conf.baseDir, 'client-env.json')
   });
-  return opts;
+  return conf;
 }
 
 /**
@@ -193,8 +210,8 @@ function defaults(opts) {
  * @param {string} baseDir
  * @return {string[]} Absolute file paths to entry files
  */
-function getEntries(baseDir, entryGlobs) {
-  return entryGlobs.reduce((prev, pattern) => {
+function getEntries(baseDir, ENTRY_GLOBS) {
+  return ENTRY_GLOBS.reduce((prev, pattern) => {
     return prev.concat(glob.sync(pattern, {cwd: baseDir}));
   }, []);
 }
@@ -216,28 +233,16 @@ function getEntries(baseDir, entryGlobs) {
 function build(opts) {
   const conf = defaults(opts),
     cache = {},
-    entryGlobs = [
-      'components/*/model.js',
-      'components/*/controller.js',
-      './global/kiln-js/index.js'
-    ],
-    entries = getEntries(conf.baseDir, entryGlobs);
+    entries = getEntries(conf.baseDir, ENTRY_GLOBS);
 
   return compileScripts(entries, conf, cache)
-    .then(()=>{
+    .then(() => {
       if (conf.watch) {
-        // start watching all files in the bundle and entry file locations
-        const filesToWatch = cache.files.concat(entryGlobs);
-
-        startWatching(filesToWatch, opts.baseDir, (file, watcher) => {
-          compileScripts([file], conf, (err) => {
-            if (err) console.error(err);
-            watcher.add(_.keys(cache.ids)); // watch new files
-          });
-        });
+        console.log('watching... cache is now', cache);
+        startWatching(cache, conf);
       }
+      return cache;
     });
 }
-
 
 module.exports = build;
