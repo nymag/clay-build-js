@@ -4,6 +4,8 @@ const fs = require('fs-extra'),
   browserify = require('browserify'),
   glob = require('glob'),
   babelify = require('babelify'),
+  babelPresetES2015 = require('babel-preset-es2015'),
+  babelCommonJS = require('babel-plugin-transform-es2015-modules-commonjs'),
   browserifySplitter = require('browserify-splitter'),
   browserifyExtractRegistry = require('browserify-extract-registry'),
   browserifyExtractIds = require('browserify-extract-ids'),
@@ -17,16 +19,7 @@ const fs = require('fs-extra'),
     labeler: require('./plugins/labeler'),
     generateModelsSource: require('./plugins/generate-models-source'),
     transformEnv: require('./plugins/transform-env')
-  },
-  REGISTRY_PATH = path.resolve('.', 'public', 'js', 'registry.json'),
-  MEGABUNDLE_DIR = path.resolve('.', 'public', 'js'),
-  ENV_PATH = path.resolve('.', 'client-env.json'),
-  // paths or globs to megabundle entry files
-  ENTRY_GLOBS = [
-    'components/*/model.js',
-    'components/*/controller.js',
-    './global/kiln-js/index.js'
-  ];
+  };
 
 /**
  * Browserify.bundle(), but as a Promise
@@ -58,8 +51,8 @@ function mergeSubcache(subcache, cache) {
  * @param {string[]} files File paths or globs to watch
  * @param {function} onUpdate Gets updated/added file path and watcher object
  */
-function startWatching(files, onUpdate) {
-  gaze(files, (err, watcher) => {
+function startWatching(files, baseDir, onUpdate) {
+  gaze(files, {cwd: baseDir}, (err, watcher) => {
     if (err) console.error(err);
     watcher.on('changed', (file) => onUpdate && onUpdate(file, watcher));
     watcher.on('added', (file) => onUpdate && onUpdate(file, watcher));
@@ -69,11 +62,7 @@ function startWatching(files, onUpdate) {
 /**
  * Update the megabundle with changes from filepaths.
  * @param {string[]} filepaths Filepaths of files that need built or updated
- * @param {object} [opts]
- * @param {boolean} [opts.debug] Disables uglify and bundle-collapse
- * @param {boolean} [opts.verbose] Logs file writes
- * @param {function} [opts.preBundle] Function to run before bundling. First arg is Browserify bundler
- * @param {function} [opts.babelConf] Configuration object for Babel.
+ * @param {object} [opts] See build opts
  * @param {object} [cache] Tracks data between builds so we don't need to do full rebuild on each change
  * @param {object} [cache.ids] Map of absolute source file paths to module IDs
  * @param {string[]} [cache.env] Array of env vars used
@@ -81,22 +70,12 @@ function startWatching(files, onUpdate) {
  * @param {string[]} [cache.files] Array of all source files represented in the megabundle.
  * @returns {Promise}
  */
-function compileScripts(filepaths, opts, cache = {}) {
+function compileScripts(filepaths, conf, cache = {}) {
   const entries = filepaths.map(file => path.resolve(file)),
     subcache = {},
     bundler = browserify({
       dedupe: false
     });
-
-  opts = _.defaults({}, opts, {
-    debug: false,
-    verbose: false,
-    preBundle: Promise.resolve(),
-    babelConf: {
-      presets: ['es2015'],
-      plugins: ['trasnform-es2015-module-commonjs']
-    }
-  });
 
   _.defaults(cache, {
     ids: {},
@@ -105,14 +84,14 @@ function compileScripts(filepaths, opts, cache = {}) {
     files: []
   });
 
-  if (opts.verbose) console.log('updating megabundle, options = ', opts);
+  if (conf.verbose) console.log('updating megabundle, options = ', conf);
 
   bundler
     .require(entries)
     // Transpile to ES5
-    .transform(babelify.configure(babelConf))
+    .transform(babelify.configure(conf.babelConf))
     // Transform behavior and pane .vue files
-    .transform(vueify, {babel: babelConf})
+    .transform(vueify, {babel: conf.babelConf})
     // Generate the "models" module; allows edit-after to fetch all model names with
     // require('models')
     .plugin(plugins.generateModelsSource, {
@@ -146,8 +125,8 @@ function compileScripts(filepaths, opts, cache = {}) {
     // Write out each chunk of the browser-pack bundle in such a way
     // that module chunks can be concatenated together arbitrarily
     .plugin(browserifySplitter, {
-      writeToDir: MEGABUNDLE_DIR,
-      verbose: opts.verbose
+      writeToDir: conf.outputDir,
+      verbose: conf.verbose
     })
      // Transform process.env into window.process.env and export array of env vars
     .plugin(plugins.transformEnv, {
@@ -157,7 +136,7 @@ function compileScripts(filepaths, opts, cache = {}) {
       }
     });
 
-  if (!opts.debug) {
+  if (!conf.debug) {
     bundler
       // Uglify everything
       .transform({
@@ -170,17 +149,54 @@ function compileScripts(filepaths, opts, cache = {}) {
       .plugin(bundleCollapser);
   }
 
-  return Promise.resolve(opts.preBundle(bundler))
+  return Promise.resolve(conf.preBundle(bundler))
     .then(() => promiseBundle(bundler))
     .then(() => {
-        if (opts.debug) console.log(cache.ids);
+        if (conf.debug) console.log(cache.ids);
         // merge the subcache into the cache; overwrite, but never delete
         mergeSubcache(subcache, cache);
         // export registry and env vars
-        fs.outputJsonSync(REGISTRY_PATH, cache.registry);
-        fs.outputJsonSync(ENV_PATH, cache.env);
-        if (opts.verbose) console.log('megabundle updated');
+        fs.outputJsonSync(conf.registryPath, cache.registry);
+        fs.outputJsonSync(conf.envPath, cache.env);
+        if (conf.verbose) console.log('megabundle updated');
     });
+}
+
+/**
+ * Add default options.
+ * @param {object} opts 
+ * @return {object}
+ */
+function defaults(opts) {
+  opts = _.defaults({}, opts, {
+    debug: false,
+    verbose: false,
+    preBundle: Promise.resolve(),
+    babelConf: {
+      presets: [babelPresetES2015],
+      plugins: [babelCommonJS]
+    },
+    baseDir: process.cwd()
+  });
+
+  // these depend on how baseDir is set and so must be separate
+  opts = _.defaults(opts, {
+    registryPath: path.resolve(opts.baseDir, 'public', 'js', 'registry.json'),
+    outputDir: path.resolve(opts.baseDir, 'public', 'js'),
+    envPath: path.resolve(opts.baseDir, 'client-env.json')
+  });
+  return opts;
+}
+
+/**
+ * Return all the entry files for a Clay installation at baseDir
+ * @param {string} baseDir
+ * @return {string[]} Absolute file paths to entry files
+ */
+function getEntries(baseDir, entryGlobs) {
+  return entryGlobs.reduce((prev, pattern) => {
+    return prev.concat(glob.sync(pattern, {cwd: baseDir}));
+  }, []);
 }
 
 /**
@@ -189,20 +205,32 @@ function compileScripts(filepaths, opts, cache = {}) {
  * @param {boolean} [opts.debug] Skip uglify for faster bundling
  * @param {boolean} [opts.verbose] Log file writes
  * @param {boolean} [opts.watch] Rebuild on changes to megabundle source files
+ * @param {string} [opts.baseDir] Root of Clay installation
+ * @param {string} [opts.registryPath] Export path of dependency registry
+ * @param {string} [opts.outputDir] Export directory of module chunks
+ * @param {string} [opts.envPath] Export path of environmental variable file
+ * @param {function} [opts.preBundle] Function to run before bundling. First arg is Browserify bundler
+ * @param {function} [opts.babelConf] Configuration object for Babel.
  * @returns {Promise}
  */
-function build(opts = {}) {
-  const entries = ENTRY_GLOBS.reduce((prev, pattern) => prev.concat(glob.sync(pattern)), []),
-    cache = {};
+function build(opts) {
+  const conf = defaults(opts),
+    cache = {},
+    entryGlobs = [
+      'components/*/model.js',
+      'components/*/controller.js',
+      './global/kiln-js/index.js'
+    ],
+    entries = getEntries(conf.baseDir, entryGlobs);
 
-  return compileScripts(entries, opts, cache)
+  return compileScripts(entries, conf, cache)
     .then(()=>{
-      if (opts.watch) {
+      if (conf.watch) {
         // start watching all files in the bundle and entry file locations
-        const filesToWatch = cache.files.concat(ENTRY_GLOBS);
+        const filesToWatch = cache.files.concat(entryGlobs);
 
-        startWatching(filesToWatch, (file, watcher) => {
-          compileScripts([file], opts, (err) => {
+        startWatching(filesToWatch, opts.baseDir, (file, watcher) => {
+          compileScripts([file], conf, (err) => {
             if (err) console.error(err);
             watcher.add(_.keys(cache.ids)); // watch new files
           });
@@ -210,5 +238,6 @@ function build(opts = {}) {
       }
     });
 }
+
 
 module.exports = build;

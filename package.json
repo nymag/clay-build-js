@@ -1,5 +1,5 @@
 {
-  "name": "clay-bundler",
+  "name": "clay-build-js",
   "version": "1.0.0",
   "description": "",
   "main": "build-megabundle.js",
@@ -9,6 +9,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "babel-plugin-transform-es2015-modules-commonjs": "^6.24.1",
+    "babel-preset-es2015": "^6.24.1",
     "babelify": "^7.3.0",
     "browser-unpack": "^1.2.0",
     "browserify": "^14.4.0",
