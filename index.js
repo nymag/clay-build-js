@@ -52,26 +52,6 @@ function mergeSubcache(subcache, cache) {
 }
 
 /**
- * Start watching files
- * @param {string[]} files File paths or globs to watch
- * @param {function} onUpdate Gets updated/added file path and watcher object
- */
-function startWatching(cache, conf) {
-  const patternsToWatch = cache.files.concat(ENTRY_GLOBS),
-    handleUpdate = file => {
-      compileScripts([file], conf, cache)
-        .then(() => watcher.add(_.keys(cache.ids))) // watch new files
-        .catch((err) => console.error(err))
-      };
-  let watcher;
-  
-  new Gaze(patternsToWatch, {cwd: conf.baseDir})
-    .on('ready', result => watcher = result)
-    .on('changed', handleUpdate)
-    .on('added', handleUpdate);
-}
-
-/**
  * Update the megabundle with changes from filepaths.
  * @param {string[]} filepaths Filepaths of files that need built or updated
  * @param {object} [opts] See build opts
@@ -97,8 +77,6 @@ function compileScripts(filepaths, conf, cache = {}) {
   });
 
   if (conf.verbose) console.log('updating megabundle, options = ', conf);
-
-  console.log('--cache =', cache);
 
   bundler
     .require(entries)
@@ -168,10 +146,8 @@ function compileScripts(filepaths, conf, cache = {}) {
     .then(() => {
         if (conf.debug) console.log(cache.ids);
         // merge the subcache into the cache; overwrite, but never delete
-        console.log('!!!merging subcache, registry = ', subcache.registry);
         mergeSubcache(subcache, cache);
 
-        console.log('!!!NEW CACHE: ', cache);
         // export registry and env vars
         fs.outputJsonSync(conf.registryPath, cache.registry);
         fs.outputJsonSync(conf.envPath, cache.env);
@@ -238,7 +214,6 @@ function build(opts) {
   return compileScripts(entries, conf, cache)
     .then(() => {
       if (conf.watch) {
-        console.log('watching... cache is now', cache);
         startWatching(cache, conf);
       }
       return cache;
