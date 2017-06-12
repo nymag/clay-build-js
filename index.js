@@ -141,7 +141,7 @@ function compileScripts(filepaths, conf, cache = {}) {
       .plugin(bundleCollapser);
   }
 
-  return Promise.resolve(conf.preBundle(bundler))
+  return conf.preBundle(bundler)
     .then(() => promiseBundle(bundler))
     .then(() => {
         if (conf.debug) console.log(cache.ids);
@@ -160,11 +160,11 @@ function compileScripts(filepaths, conf, cache = {}) {
  * @param {object} opts 
  * @return {object}
  */
-function defaults(opts) {
+function defaults(opts = {}) {
   let conf = _.defaults({}, opts, {
     debug: false,
     verbose: false,
-    preBundle: Promise.resolve(),
+    preBundle: () => Promise.resolve(),
     babelConf: {
       presets: [babelPresetES2015],
       plugins: [babelCommonJS]
