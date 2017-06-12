@@ -1,12 +1,12 @@
 {
   "name": "clay-build-js",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "",
   "main": "build-megabundle.js",
   "scripts": {
     "test": "mocha test"
   },
-  "author": "",
+  "author": "New York Media",
   "license": "ISC",
   "dependencies": {
     "babel-plugin-transform-es2015-modules-commonjs": "^6.24.1",
@@ -30,5 +30,9 @@
   "devDependencies": {
     "mocha": "^3.4.2",
     "sinon": "^2.3.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nymag/clay-build-js.git"
   }
 }
