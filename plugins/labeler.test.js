@@ -1,8 +1,5 @@
 'use strict';
-const sinon = require('sinon'),
-  expect = require('chai').expect,
-  path = require('path'),
-  fs = require('fs'),
+const expect = require('chai').expect,
   browserify = require('browserify'),
   mockFiles = require('../test/mock-files'),
   dirname = __dirname.split('/').pop(),
@@ -24,7 +21,7 @@ describe(dirname, function () {
 
 
     it('gives model.js files component-name.model IDs', function (done) {
-      const bundler = browserify()
+      browserify()
         .add(mockFiles.path('a.js'))
         .plugin(fn)
         .bundle((err, contents) => {
@@ -39,7 +36,7 @@ describe(dirname, function () {
     });
 
     it('gives other files numeric IDs', function (done) {
-      const bundler = browserify()
+      browserify()
         .add(mockFiles.path('a.js'))
         .plugin(fn)
         .bundle((err, contents) => {
@@ -52,13 +49,12 @@ describe(dirname, function () {
     });
 
     it('gives files the same IDs that they have in the cache', function (done) {
-      let bundler;
       const cachedIds = {};
 
       cachedIds[mockFiles.path('a.js')] = 'foo';
       cachedIds[mockFiles.path('b/model.js')] = 'bar';
 
-      bundler = browserify()
+      browserify()
         .add(mockFiles.path('a.js'))
         .plugin(fn, {cachedIds})
         .bundle((err, contents) => {
@@ -72,7 +68,7 @@ describe(dirname, function () {
     });
 
     it('assigns new (non-cached) modules numeric IDs greater than the highest numeric ID in the cache', function (done) {
-      const bundler = browserify()
+      browserify()
         .add(mockFiles.path('a.js'))
         .add(mockFiles.path('d.js'))
         .plugin(fn, {
@@ -83,7 +79,7 @@ describe(dirname, function () {
         .bundle((err, contents) => {
           const unpacked = unpack(contents);
 
-          if(err) return done(err);
+          if (err) return done(err);
           expect(unpacked[0].id).to.equal(101);
           expect(unpacked[3].id).to.equal(102);
           done();

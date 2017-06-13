@@ -1,6 +1,7 @@
+'use strict';
+
 const build = require('../index') ,
   mockFiles = require('./mock-files'),
-  fs = require('fs-extra'),
   sinon = require('sinon'),
   expect = require('chai').expect;
 
@@ -21,7 +22,7 @@ describe('build', function () {
     after(function () {
       mockFiles.reset();
     });
-    
+
     it('outputs a chunk for each model.js', function () {
       mockFiles.read('public/js/a.model.js');
       mockFiles.read('public/js/b.model.js');
@@ -59,7 +60,7 @@ describe('build', function () {
       return build({
         baseDir: mockFiles.path(),
         preBundle: () => util.test()
-      })
+      });
     });
 
     it('calls prebundle function', function () {

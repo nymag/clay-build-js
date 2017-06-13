@@ -1,8 +1,5 @@
 'use strict';
-const sinon = require('sinon'),
-  expect = require('chai').expect,
-  path = require('path'),
-  fs = require('fs'),
+const expect = require('chai').expect,
   browserify = require('browserify'),
   mockFiles = require('../test/mock-files'),
   dirname = __dirname.split('/').pop(),
@@ -17,7 +14,7 @@ describe(dirname, function () {
       srcC = 'module.exports=2';
 
     beforeEach(()=> {
-      mockFiles.create('a.js', srcA)
+      mockFiles.create('a.js', srcA);
       mockFiles.create('b.js', srcB);
       mockFiles.create('c.js', srcC);
     });
@@ -26,22 +23,22 @@ describe(dirname, function () {
     });
 
     it('does not filter out anything if cachedFiles is not set', function (done) {
-      const bundler = browserify()
+      browserify()
         .add(mockFiles.path('a.js'))
         .plugin(fn)
         .bundle((err, contents) => {
           const unpacked = unpack(contents);
-          if (err) return done(err);
 
+          if (err) return done(err);
           expect(unpacked.length).to.equal(2);
           expect(unpacked[0].source).to.equal(srcA);
-          expect(unpacked[1].source).to.equal(srcB)
+          expect(unpacked[1].source).to.equal(srcB);
           done();
         });
     });
 
     it('filters out files included in cachedFiles', function (done) {
-      const bundler = browserify()
+      browserify()
         .add(mockFiles.path('a.js'))
         .plugin(fn, {
           cachedFiles: [
@@ -51,8 +48,8 @@ describe(dirname, function () {
         })
         .bundle((err, contents) => {
           const unpacked = unpack(contents);
-          if (err) return done(err);
 
+          if (err) return done(err);
           expect(unpacked.length).to.equal(1);
           expect(unpacked[0].source).to.equal(srcA);
           done();
@@ -60,7 +57,7 @@ describe(dirname, function () {
     });
 
     it('does not filter out entry files, even if they are in cachedFiles', function (done) {
-      const bundler = browserify()
+      browserify()
         .add(mockFiles.path('a.js'))
         .add(mockFiles.path('b.js'))
         .plugin(fn, {
@@ -72,8 +69,8 @@ describe(dirname, function () {
         })
         .bundle((err, contents) => {
           const unpacked = unpack(contents);
-          if (err) return done(err);
 
+          if (err) return done(err);
           expect(unpacked.length).to.equal(2);
           expect(unpacked[0].source).to.equal(srcA);
           expect(unpacked[1].source).to.equal(srcB);

@@ -1,8 +1,5 @@
 'use strict';
-const sinon = require('sinon'),
-  expect = require('chai').expect,
-  path = require('path'),
-  fs = require('fs'),
+const expect = require('chai').expect,
   browserify = require('browserify'),
   mockFiles = require('../test/mock-files'),
   dirname = __dirname.split('/').pop(),
@@ -13,7 +10,7 @@ const sinon = require('sinon'),
 describe(dirname, function () {
   describe(filename, function () {
     beforeEach(function () {
-      mockFiles.create('a.js', "require('./b/model.js');require('./c/model.js')")
+      mockFiles.create('a.js', "require('./b/model.js');require('./c/model.js')");
       mockFiles.create('b/model.js', 'module.exports=1');
       mockFiles.create('c/model.js', 'module.exports=2');
     });
@@ -23,7 +20,7 @@ describe(dirname, function () {
 
 
     it('generates a models module with the correct module IDs', function (done) {
-      const bundler = browserify()
+      browserify()
         .add(mockFiles.path('a.js'))
         .plugin(fn, {
           entries: ['a.js', 'b/model.js', 'c/model.js']
@@ -40,7 +37,7 @@ describe(dirname, function () {
     });
 
     it('merges entries with cachedFiles', function (done) {
-      const bundler = browserify()
+      browserify()
         .add(mockFiles.path('a.js'))
         .plugin(fn, {
           entries: ['a.js', 'b/model.js'],
@@ -57,8 +54,8 @@ describe(dirname, function () {
         });
     });
 
-  it('dedupes overlap between entries and cachedFiles', function (done) {
-      const bundler = browserify()
+    it('dedupes overlap between entries and cachedFiles', function (done) {
+      browserify()
         .add(mockFiles.path('a.js'))
         .plugin(fn, {
           entries: ['a.js', 'b/model.js', 'c/model.js'],
@@ -76,7 +73,7 @@ describe(dirname, function () {
     });
 
     it('generates a module even if given no entries', function (done) {
-      const bundler = browserify()
+      browserify()
         .add(mockFiles.path('a.js'))
         .plugin(fn)
         .bundle((err, contents) => {
@@ -88,6 +85,6 @@ describe(dirname, function () {
           expect(unpacked[3].id).to.equal('models');
           done();
         });
-    });    
+    });
   });
 });

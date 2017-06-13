@@ -12,13 +12,13 @@ const _ = require('lodash'),
  */
 function generateModelsSource(b, {entries = [], cachedFiles = []}) {
   const models = _.union(entries, cachedFiles)
-    .filter(file => _.endsWith(file, 'model.js'))
-    .map(file => ({
-      file: file,
-      name: file.split('/').slice(-2)[0]
-    })),
+      .filter(file => _.endsWith(file, 'model.js'))
+      .map(file => ({
+        file: file,
+        name: file.split('/').slice(-2)[0]
+      })),
     source = toStream('module.exports=' + JSON.stringify(models.map(m => m.name)));
-  
+
   b.require(source, {expose: 'models'});
   return b;
 }

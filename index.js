@@ -1,6 +1,6 @@
 'use strict';
 const fs = require('fs-extra'),
-  path = require('path'), 
+  path = require('path'),
   browserify = require('browserify'),
   glob = require('glob'),
   babelify = require('babelify'),
@@ -28,10 +28,12 @@ const fs = require('fs-extra'),
 
 /**
  * Browserify.bundle(), but as a Promise
- * @param {} bundler 
+ * @param {object} bundler Browserify bundler
+ * @param {object} opts Bundler options
+ * @returns {Promise}
  */
 function promiseBundle(bundler, opts) {
-  return new Promise(function(resolve, reject) {
+  return new Promise(function (resolve, reject) {
     bundler.bundle(opts)
       .on('end', () => resolve())
       .on('error', reject)
@@ -41,8 +43,8 @@ function promiseBundle(bundler, opts) {
 
 /**
  * Merge the subcache into the cache.
- * @param {object} subcache 
- * @param {object} cache 
+ * @param {object} subcache
+ * @param {object} cache
  */
 function mergeSubcache(subcache, cache) {
   _.assign(cache.registry, subcache.registry);
@@ -52,9 +54,29 @@ function mergeSubcache(subcache, cache) {
 }
 
 /**
+ * Start watching files
+ * @param {object} cache
+ * @param {object} conf
+ */
+function startWatching(cache, conf) {
+  const patternsToWatch = cache.files.concat(ENTRY_GLOBS),
+    handleUpdate = file => {
+      compileScripts([file], conf, cache)
+        .then(() => watcher.add(_.keys(cache.ids))) // watch new files
+        .catch((err) => console.error(err));
+    };
+  let watcher;
+
+  new Gaze(patternsToWatch, {cwd: conf.baseDir})
+    .on('ready', result => watcher = result)
+    .on('changed', handleUpdate)
+    .on('added', handleUpdate);
+}
+
+/**
  * Update the megabundle with changes from filepaths.
  * @param {string[]} filepaths Filepaths of files that need built or updated
- * @param {object} [opts] See build opts
+ * @param {object} [conf] See build opts
  * @param {object} [cache] Tracks data between builds so we don't need to do full rebuild on each change
  * @param {object} [cache.ids] Map of absolute source file paths to module IDs
  * @param {string[]} [cache.env] Array of env vars used
@@ -121,7 +143,7 @@ function compileScripts(filepaths, conf, cache = {}) {
       writeToDir: conf.outputDir,
       verbose: conf.verbose
     })
-     // Transform process.env into window.process.env and export array of env vars
+    // Transform process.env into window.process.env and export array of env vars
     .plugin(plugins.transformEnv, {
       callback: (err, env) => {
         if (err) return console.error(err);
@@ -146,20 +168,20 @@ function compileScripts(filepaths, conf, cache = {}) {
   return conf.preBundle(bundler)
     .then(() => promiseBundle(bundler))
     .then(() => {
-        if (conf.debug) console.log(cache.ids);
-        // merge the subcache into the cache; overwrite, but never delete
-        mergeSubcache(subcache, cache);
+      if (conf.debug) console.log(cache.ids);
+      // merge the subcache into the cache; overwrite, but never delete
+      mergeSubcache(subcache, cache);
 
-        // export registry and env vars
-        fs.outputJsonSync(conf.registryPath, cache.registry);
-        fs.outputJsonSync(conf.envPath, cache.env);
-        if (conf.verbose) console.log('megabundle updated');
+      // export registry and env vars
+      fs.outputJsonSync(conf.registryPath, cache.registry);
+      fs.outputJsonSync(conf.envPath, cache.env);
+      if (conf.verbose) console.log('megabundle updated');
     });
 }
 
 /**
  * Add default options.
- * @param {object} opts 
+ * @param {object} opts
  * @return {object}
  */
 function defaults(opts = {}) {
@@ -188,7 +210,7 @@ function defaults(opts = {}) {
  * @param {string} baseDir
  * @return {string[]} Absolute file paths to entry files
  */
-function getEntries(baseDir, ENTRY_GLOBS) {
+function getEntries(baseDir) {
   return ENTRY_GLOBS
     .reduce((prev, pattern) => {
       return prev.concat(glob.sync(pattern, {
@@ -215,7 +237,7 @@ function getEntries(baseDir, ENTRY_GLOBS) {
 function build(opts) {
   const conf = defaults(opts),
     cache = {},
-    entries = getEntries(conf.baseDir, ENTRY_GLOBS);
+    entries = getEntries(conf.baseDir);
 
   return compileScripts(entries, conf, cache)
     .then(() => {

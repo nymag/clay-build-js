@@ -1,8 +1,5 @@
 'use strict';
-const sinon = require('sinon'),
-  expect = require('chai').expect,
-  path = require('path'),
-  fs = require('fs'),
+const expect = require('chai').expect,
   browserify = require('browserify'),
   mockFiles = require('../test/mock-files'),
   dirname = __dirname.split('/').pop(),
@@ -22,7 +19,7 @@ describe(dirname, function () {
     });
 
     it('exposes used env vars in plugin callback', function (done) {
-      const bundler = browserify()
+      browserify()
         .add(mockFiles.path('a.js'))
         .plugin(fn, {
           callback: (err, env) => {
@@ -34,13 +31,13 @@ describe(dirname, function () {
             done();
           }
         })
-        .bundle((err, contents) => {
+        .bundle((err) => {
           if (err) return done(err);
         });
     });
 
     it('rewrites process.env to window.process.env', function (done) {
-      const bundler = browserify()
+      browserify()
         .add(mockFiles.path('a.js'))
         .plugin(fn)
         .bundle((err, contents) => {

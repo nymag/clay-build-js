@@ -6,6 +6,7 @@ Everything is synchronous.
 
 */
 
+'use strict';
 const path = require('path'),
   fs = require('fs-extra'),
   BASE_DIR = path.join(__dirname, 'mock-files');
