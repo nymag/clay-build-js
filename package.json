@@ -25,6 +25,7 @@
     "lodash": "^4.17.4",
     "node-sass": "^4.5.3",
     "string-to-stream": "^1.1.0",
+    "uglifyify": "^4.0.0",
     "vueify": "^9.4.1"
   },
   "devDependencies": {
