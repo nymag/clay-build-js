@@ -30,9 +30,9 @@ const fs = require('fs-extra'),
  * Browserify.bundle(), but as a Promise
  * @param {} bundler 
  */
-function promiseBundle(bundler) {
+function promiseBundle(bundler, opts) {
   return new Promise(function(resolve, reject) {
-    bundler.bundle()
+    bundler.bundle(opts)
       .on('end', () => resolve())
       .on('error', reject)
       .resume(); // force the bundle read-stream to flow
@@ -66,7 +66,8 @@ function compileScripts(filepaths, conf, cache = {}) {
   const entries = filepaths.map(file => path.resolve(file)),
     subcache = {},
     bundler = browserify({
-      dedupe: false
+      dedupe: false,
+      baseDir: conf.baseDir
     });
 
   _.defaults(cache, {
@@ -131,11 +132,12 @@ function compileScripts(filepaths, conf, cache = {}) {
   if (!conf.debug) {
     bundler
       // Uglify everything
-      .transform({
+      .transform('uglifyify', {
         global: true,
+        sourceMap: false,
         output: {
           inline_script: true
-        }}, 'uglifyify')
+        }})
       // Shorten bundle size by rewriting require calls to use actual module IDs
       // instead of file paths
       .plugin(bundleCollapser);
@@ -187,9 +189,13 @@ function defaults(opts = {}) {
  * @return {string[]} Absolute file paths to entry files
  */
 function getEntries(baseDir, ENTRY_GLOBS) {
-  return ENTRY_GLOBS.reduce((prev, pattern) => {
-    return prev.concat(glob.sync(pattern, {cwd: baseDir}));
-  }, []);
+  return ENTRY_GLOBS
+    .reduce((prev, pattern) => {
+      return prev.concat(glob.sync(pattern, {
+        cwd: baseDir,
+        absolute: true
+      }));
+    }, []);
 }
 
 /**

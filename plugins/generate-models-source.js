@@ -18,7 +18,7 @@ function generateModelsSource(b, {entries = [], cachedFiles = []}) {
       name: file.split('/').slice(-2)[0]
     })),
     source = toStream('module.exports=' + JSON.stringify(models.map(m => m.name)));
-
+  
   b.require(source, {expose: 'models'});
   return b;
 }

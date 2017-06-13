@@ -2,3 +2,4 @@
 --ui bdd
 --recursive
 plugins/**/*.test.js
+test/**/*.test.js
