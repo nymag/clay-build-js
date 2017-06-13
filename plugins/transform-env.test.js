@@ -9,12 +9,12 @@ const expect = require('chai').expect,
 
 describe(dirname, function () {
   describe(filename, function () {
-    beforeEach(function () {
+    before(function () {
       mockFiles.create('a.js', "require('./b/model.js');require('./c/model.js');");
       mockFiles.create('b/model.js', 'module.exports=process.env.FOO;');
       mockFiles.create('c/model.js', 'module.exports=[process.env.BAR,process.env.BAZ];');
     });
-    afterEach(function () {
+    after(function () {
       mockFiles.reset();
     });
 

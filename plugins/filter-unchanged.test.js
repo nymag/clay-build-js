@@ -13,12 +13,12 @@ describe(dirname, function () {
       srcB = 'module.exports=1',
       srcC = 'module.exports=2';
 
-    beforeEach(()=> {
+    before(function () {
       mockFiles.create('a.js', srcA);
       mockFiles.create('b.js', srcB);
       mockFiles.create('c.js', srcC);
     });
-    afterEach(function () {
+    after(function () {
       mockFiles.reset();
     });
 

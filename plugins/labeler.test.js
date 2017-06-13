@@ -9,13 +9,13 @@ const expect = require('chai').expect,
 
 describe(dirname, function () {
   describe(filename, function () {
-    beforeEach(function () {
+    before(function () {
       mockFiles.create('a.js', "require('./b/model.js');require('./c/model.js');");
       mockFiles.create('b/model.js', 'module.exports=1;');
       mockFiles.create('c/model.js', 'module.exports=2;');
       mockFiles.create('d.js', 'module.exports=3;');
     });
-    afterEach(function () {
+    after(function () {
       mockFiles.reset();
     });
 
