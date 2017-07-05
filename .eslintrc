@@ -5,7 +5,6 @@
     "mocha": true,
     "es6": true
   },
-  "plugins": ["html"],
   // add global vars for chai, etc
   "globals": {
     "expect": false,
